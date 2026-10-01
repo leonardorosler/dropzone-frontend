@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { buscarMinhasInteracoes } from "../api/auth";
 import { criarAvaliacao, listarAvaliacoesProduto } from "../api/avaliacoes";
 import {
   adicionarItemCarrinho,
@@ -20,6 +21,7 @@ import type {
   Avaliacao,
   Carrinho,
   Favorito,
+  InteracoesUsuario,
   PedidoWhatsapp,
   Produto,
   ProdutoVariacao,
@@ -387,13 +389,189 @@ export function CartPage() {
 
 export function InteractionsPage() {
   const { usuario } = useAuth();
+  const [interacoes, setInteracoes] = useState<InteracoesUsuario | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    buscarMinhasInteracoes()
+      .then(setInteracoes)
+      .catch((error) => {
+        setErro(error instanceof Error ? error.message : "Erro ao carregar interações.");
+        setInteracoes(null);
+      })
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const favoritos = interacoes?.favoritos ?? [];
+  const avaliacoes = interacoes?.avaliacoes ?? [];
+  const carrinhos = interacoes?.carrinhos ?? [];
+  const pedidosFinalizados = carrinhos.filter((carrinho) => carrinho.finalizado);
+  const carrinhosAbertos = carrinhos.filter((carrinho) => !carrinho.finalizado);
+
+  const totalItensPedidos = carrinhos.reduce(
+    (total, carrinho) =>
+      total +
+      carrinho.itens.reduce((soma, item) => soma + item.quantidade, 0),
+    0
+  );
 
   return (
-    <PlaceholderPage
-      eyebrow="Interações"
-      title={`Olá, ${usuario?.nome ?? "cliente"}`}
-      text="Aqui entram favoritos, avaliações, carrinhos finalizados e respostas do admin."
-    />
+    <main className="section interactions-page">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">Interações</span>
+          <h1>Olá, {usuario?.nome ?? "cliente"}</h1>
+        </div>
+
+        <a className="btn btn-outline" href="/catalogo">
+          Continuar explorando
+        </a>
+      </div>
+
+      {carregando ? (
+        <p className="status-text">Carregando interações...</p>
+      ) : erro ? (
+        <p className="error page-message">{erro}</p>
+      ) : !interacoes ? (
+        <p className="status-text">Nenhuma interação encontrada.</p>
+      ) : (
+        <>
+          <section className="interaction-metrics">
+            <article>
+              <span>Favoritos</span>
+              <strong>{favoritos.length}</strong>
+            </article>
+            <article>
+              <span>Avaliações</span>
+              <strong>{avaliacoes.length}</strong>
+            </article>
+            <article>
+              <span>Pedidos</span>
+              <strong>{pedidosFinalizados.length}</strong>
+            </article>
+            <article>
+              <span>Itens</span>
+              <strong>{totalItensPedidos}</strong>
+            </article>
+          </section>
+
+          <div className="interaction-grid">
+            <section className="interaction-panel">
+              <div className="panel-heading">
+                <span className="eyebrow">Favoritos</span>
+                <h2>Peças salvas</h2>
+              </div>
+
+              {favoritos.length === 0 ? (
+                <p className="status-text">Você ainda não salvou favoritos.</p>
+              ) : (
+                <div className="mini-list">
+                  {favoritos.map((favorito) => (
+                    <a
+                      href={`/produtos/${favorito.produtoId}`}
+                      key={favorito.id}
+                      className="mini-row"
+                    >
+                      <strong>{favorito.produto?.nome ?? `Produto #${favorito.produtoId}`}</strong>
+                      <span>
+                        {favorito.produto
+                          ? Number(favorito.produto.preco).toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })
+                          : "Ver produto"}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="interaction-panel">
+              <div className="panel-heading">
+                <span className="eyebrow">Avaliações</span>
+                <h2>Suas opiniões</h2>
+              </div>
+
+              {avaliacoes.length === 0 ? (
+                <p className="status-text">Você ainda não avaliou produtos.</p>
+              ) : (
+                <div className="mini-list">
+                  {avaliacoes.map((avaliacao) => (
+                    <article key={avaliacao.id} className="mini-row review-mini">
+                      <strong>{avaliacao.produto?.nome ?? `Produto #${avaliacao.produtoId}`}</strong>
+                      <span>{avaliacao.nota} ★</span>
+                      {avaliacao.comentario && <p>{avaliacao.comentario}</p>}
+                      {avaliacao.respostaAdmin && (
+                        <div className="admin-reply">
+                          <b>Resposta da loja</b>
+                          <span>{avaliacao.respostaAdmin}</span>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="interaction-panel wide">
+              <div className="panel-heading">
+                <span className="eyebrow">Pedidos</span>
+                <h2>Carrinhos e pedidos</h2>
+              </div>
+
+              {carrinhos.length === 0 ? (
+                <p className="status-text">Você ainda não tem carrinhos ou pedidos.</p>
+              ) : (
+                <div className="order-list">
+                  {carrinhos.map((carrinho) => {
+                    const total = carrinho.itens.reduce((soma, item) => {
+                      return (
+                        soma +
+                        Number(item.produtoVariacao.produto.preco) * item.quantidade
+                      );
+                    }, 0);
+
+                    return (
+                      <article className="order-card" key={carrinho.id}>
+                        <div>
+                          <span className={carrinho.finalizado ? "order-status done" : "order-status"}>
+                            {carrinho.finalizado ? "Finalizado" : "Aberto"}
+                          </span>
+                          <strong>Pedido #{carrinho.id}</strong>
+                          <small>
+                            {carrinho.itens.length} itens /{" "}
+                            {total.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </small>
+                        </div>
+
+                        <div className="order-items">
+                          {carrinho.itens.slice(0, 4).map((item) => (
+                            <span key={item.id}>
+                              {item.quantidade}x {item.produtoVariacao.produto.nome}
+                            </span>
+                          ))}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {carrinhosAbertos.length > 0 && (
+            <a className="btn btn-primary interactions-cart-link" href="/carrinho">
+              Ver carrinho aberto
+            </a>
+          )}
+        </>
+      )}
+    </main>
   );
 }
 

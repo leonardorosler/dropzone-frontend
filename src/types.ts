@@ -42,9 +42,9 @@ export interface ProdutoVariacao {
 export interface Produto {
   id: number;
   nome: string;
-  descricao: string;
+  descricao?: string;
   preco: string | number;
-  disponivel: boolean;
+  disponivel?: boolean;
   destaque?: boolean;
   categoriaId?: number;
   categoria?: Categoria;
@@ -68,6 +68,7 @@ export interface Avaliacao {
   usuarioId: number;
   criadoEm?: string;
   usuario?: Pick<Usuario, "id" | "nome" | "email">;
+  produto?: Pick<Produto, "id" | "nome">;
 }
 
 export interface Favorito {
@@ -100,6 +101,12 @@ export interface PedidoWhatsapp {
   mensagem: string;
   whatsappUrl: string;
   total: number;
+}
+
+export interface InteracoesUsuario {
+  favoritos: Favorito[];
+  avaliacoes: Avaliacao[];
+  carrinhos: Carrinho[];
 }
 
 export interface SugestaoIA {

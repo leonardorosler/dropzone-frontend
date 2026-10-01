@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import type { LoginResponse, Usuario } from "../types";
+import type { InteracoesUsuario, LoginResponse, Usuario } from "../types";
 
 export function login(email: string, senha: string) {
   return apiFetch<LoginResponse>("/auth/login", {
@@ -21,6 +21,12 @@ export function cadastrarUsuario(data: {
 
 export function buscarUsuarioLogado() {
   return apiFetch<Usuario>("/usuarios/me", {
+    auth: true,
+  });
+}
+
+export function buscarMinhasInteracoes() {
+  return apiFetch<InteracoesUsuario>("/usuarios/me/interacoes", {
     auth: true,
   });
 }
