@@ -1,18 +1,388 @@
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { criarAvaliacao, listarAvaliacoesProduto } from "../api/avaliacoes";
-import { adicionarItemCarrinho } from "../api/carrinho";
-import { adicionarFavorito } from "../api/favoritos";
+import {
+  adicionarItemCarrinho,
+  atualizarQuantidadeItemCarrinho,
+  gerarPedidoWhatsapp,
+  listarCarrinho,
+  removerItemCarrinho,
+} from "../api/carrinho";
+import {
+  adicionarFavorito,
+  listarFavoritos,
+  removerFavorito,
+} from "../api/favoritos";
 import { sugerirLook } from "../api/ia";
 import { buscarProdutoPorId } from "../api/produtos";
 import { useAuth } from "../auth/AuthContext";
-import type { Avaliacao, Produto, ProdutoVariacao, SugestaoIA } from "../types";
+import type {
+  Avaliacao,
+  Carrinho,
+  Favorito,
+  PedidoWhatsapp,
+  Produto,
+  ProdutoVariacao,
+  SugestaoIA,
+} from "../types";
 
 export function FavoritesPage() {
-  return <PlaceholderPage eyebrow="Favoritos" title="Seus produtos favoritos" />;
+  const [favoritos, setFavoritos] = useState<Favorito[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  async function carregarFavoritos() {
+    setCarregando(true);
+    setErro("");
+
+    try {
+      const lista = await listarFavoritos();
+      setFavoritos(lista);
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao carregar favoritos.");
+      setFavoritos([]);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarFavoritos();
+  }, []);
+
+  async function remover(produtoId: number) {
+    setErro("");
+    setMensagem("");
+
+    try {
+      await removerFavorito(produtoId);
+      setFavoritos((lista) =>
+        lista.filter((favorito) => favorito.produtoId !== produtoId)
+      );
+      setMensagem("Produto removido dos favoritos.");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao remover favorito.");
+    }
+  }
+
+  return (
+    <main className="section catalog-page favorites-page">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">Favoritos</span>
+          <h1>Seus produtos favoritos</h1>
+        </div>
+
+        <a className="btn btn-outline" href="/catalogo">
+          Ver catálogo
+        </a>
+      </div>
+
+      {mensagem && <p className="success page-message">{mensagem}</p>}
+      {erro && <p className="error page-message">{erro}</p>}
+
+      {carregando ? (
+        <p className="status-text">Carregando favoritos...</p>
+      ) : favoritos.length === 0 ? (
+        <section className="empty-panel inline-empty">
+          <span className="eyebrow">Lista vazia</span>
+          <h2>Nenhuma peça salva ainda.</h2>
+          <p>
+            Explore o catálogo e marque os produtos que você quer acompanhar de
+            perto.
+          </p>
+          <a className="btn btn-primary" href="/catalogo">
+            Explorar peças
+          </a>
+        </section>
+      ) : (
+        <div className="favorite-grid">
+          {favoritos.map((favorito) => (
+            <article className="favorite-item" key={favorito.id}>
+              {favorito.produto ? (
+                <>
+                  <a className="favorite-image" href={`/produtos/${favorito.produto.id}`}>
+                    <img
+                      src={
+                        favorito.produto.imagens?.[0]?.imagemUrl ??
+                        "/home/produto-demo-01.webp"
+                      }
+                      alt={favorito.produto.nome}
+                    />
+                  </a>
+
+                  <div className="favorite-copy">
+                    <small>{favorito.produto.categoria?.nome ?? "DropZone"}</small>
+                    <a href={`/produtos/${favorito.produto.id}`}>
+                      <strong>{favorito.produto.nome}</strong>
+                    </a>
+                    <span>
+                      {Number(favorito.produto.preco).toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </span>
+                  </div>
+
+                  <div className="favorite-actions">
+                    <a className="btn btn-primary" href={`/produtos/${favorito.produto.id}`}>
+                      Ver produto
+                    </a>
+                    <button
+                      className="btn btn-outline"
+                      type="button"
+                      onClick={() => remover(favorito.produtoId)}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="favorite-copy">
+                    <small>Produto #{favorito.produtoId}</small>
+                    <strong>Produto favoritado</strong>
+                    <span>Os dados completos não vieram da API.</span>
+                  </div>
+                  <button
+                    className="btn btn-outline"
+                    type="button"
+                    onClick={() => remover(favorito.produtoId)}
+                  >
+                    Remover
+                  </button>
+                </>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </main>
+  );
 }
 
 export function CartPage() {
-  return <PlaceholderPage eyebrow="Carrinho" title="Seu carrinho DropZone" />;
+  const [carrinho, setCarrinho] = useState<Carrinho | null>(null);
+  const [pedido, setPedido] = useState<PedidoWhatsapp | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  async function carregarCarrinho() {
+    setCarregando(true);
+    setErro("");
+
+    try {
+      const carrinhoAtual = await listarCarrinho();
+      setCarrinho(carrinhoAtual);
+    } catch (error) {
+      const texto = error instanceof Error ? error.message : "";
+
+      if (texto.toLowerCase().includes("carrinho")) {
+        setCarrinho(null);
+      } else {
+        setErro(texto || "Erro ao carregar carrinho.");
+      }
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarCarrinho();
+  }, []);
+
+  const itens = carrinho?.itens ?? [];
+  const total = itens.reduce((soma, item) => {
+    const preco = Number(item.produtoVariacao.produto.preco);
+    return soma + preco * item.quantidade;
+  }, 0);
+
+  async function alterarQuantidade(itemId: number, quantidade: number) {
+    if (quantidade <= 0) return;
+
+    setErro("");
+    setMensagem("");
+    setPedido(null);
+
+    try {
+      await atualizarQuantidadeItemCarrinho(itemId, quantidade);
+      setCarrinho((atual) =>
+        atual
+          ? {
+              ...atual,
+              itens: atual.itens.map((item) =>
+                item.id === itemId ? { ...item, quantidade } : item
+              ),
+            }
+          : atual
+      );
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao alterar quantidade.");
+    }
+  }
+
+  async function remover(itemId: number) {
+    setErro("");
+    setMensagem("");
+    setPedido(null);
+
+    try {
+      await removerItemCarrinho(itemId);
+      setCarrinho((atual) =>
+        atual
+          ? {
+              ...atual,
+              itens: atual.itens.filter((item) => item.id !== itemId),
+            }
+          : atual
+      );
+      setMensagem("Item removido do carrinho.");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao remover item.");
+    }
+  }
+
+  async function finalizar() {
+    setErro("");
+    setMensagem("");
+    setPedido(null);
+
+    try {
+      const resultado = await gerarPedidoWhatsapp();
+      setPedido(resultado);
+      setMensagem("Pedido pronto para enviar pelo WhatsApp.");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao finalizar carrinho.");
+    }
+  }
+
+  return (
+    <main className="section cart-page">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">Carrinho</span>
+          <h1>Seu carrinho DropZone</h1>
+        </div>
+
+        <a className="btn btn-outline" href="/catalogo">
+          Continuar comprando
+        </a>
+      </div>
+
+      {mensagem && <p className="success page-message">{mensagem}</p>}
+      {erro && <p className="error page-message">{erro}</p>}
+
+      {carregando ? (
+        <p className="status-text">Carregando carrinho...</p>
+      ) : itens.length === 0 ? (
+        <section className="empty-panel inline-empty">
+          <span className="eyebrow">Carrinho vazio</span>
+          <h2>Nenhuma peça adicionada.</h2>
+          <p>
+            Escolha uma peça, selecione cor e tamanho, e adicione ao carrinho
+            para montar o pedido.
+          </p>
+          <a className="btn btn-primary" href="/catalogo">
+            Ver catálogo
+          </a>
+        </section>
+      ) : (
+        <div className="cart-layout">
+          <section className="cart-list">
+            {itens.map((item) => {
+              const variacao = item.produtoVariacao;
+              const produto = variacao.produto;
+              const preco = Number(produto.preco);
+              const subtotal = preco * item.quantidade;
+
+              return (
+                <article className="cart-item" key={item.id}>
+                  <a className="cart-image" href={`/produtos/${produto.id}`}>
+                    <img
+                      src={produto.imagens?.[0]?.imagemUrl ?? "/home/produto-demo-01.webp"}
+                      alt={produto.nome}
+                    />
+                  </a>
+
+                  <div className="cart-copy">
+                    <small>
+                      {variacao.cor?.nome ?? "Cor não informada"} / {variacao.tamanho.nome}
+                    </small>
+                    <a href={`/produtos/${produto.id}`}>
+                      <strong>{produto.nome}</strong>
+                    </a>
+                    <span>
+                      {preco.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </span>
+                  </div>
+
+                  <label className="cart-quantity">
+                    Qtd.
+                    <input
+                      min={1}
+                      max={99}
+                      type="number"
+                      value={item.quantidade}
+                      onChange={(event) =>
+                        alterarQuantidade(item.id, Number(event.target.value))
+                      }
+                    />
+                  </label>
+
+                  <strong className="cart-subtotal">
+                    {subtotal.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </strong>
+
+                  <button
+                    className="cart-remove"
+                    type="button"
+                    onClick={() => remover(item.id)}
+                    aria-label={`Remover ${produto.nome}`}
+                  >
+                    <X size={18} />
+                  </button>
+                </article>
+              );
+            })}
+          </section>
+
+          <aside className="cart-summary">
+            <span className="eyebrow">Resumo</span>
+            <h2>
+              {total.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </h2>
+            <p>
+              Ao finalizar, o sistema gera a mensagem do pedido e o link do
+              WhatsApp da loja.
+            </p>
+            <button className="btn btn-primary" type="button" onClick={finalizar}>
+              Finalizar pelo WhatsApp
+            </button>
+
+            {pedido && (
+              <div className="whatsapp-result">
+                <a className="btn whatsapp-btn" href={pedido.whatsappUrl} target="_blank">
+                  Abrir WhatsApp
+                </a>
+                <textarea readOnly value={pedido.mensagem} />
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </main>
+  );
 }
 
 export function InteractionsPage() {

@@ -1,3 +1,4 @@
+import { Heart, Search, ShoppingBag } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -33,7 +34,7 @@ export function Header() {
         </nav>
 
         <form className="search-shell" onSubmit={buscar}>
-          <span aria-hidden="true">⌕</span>
+          <Search size={18} aria-hidden="true" />
           <input
             aria-label="Buscar produtos"
             placeholder="Buscar camiseta, moletom..."
@@ -44,10 +45,10 @@ export function Header() {
 
         <div className="header-actions">
           <a className="icon-link" href="/favoritos" aria-label="Favoritos">
-            ♡
+            <Heart size={19} />
           </a>
           <a className="icon-link" href="/carrinho" aria-label="Carrinho">
-            ▢
+            <ShoppingBag size={19} />
           </a>
 
           {usuario ? (

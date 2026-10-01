@@ -81,6 +81,11 @@ export interface ItemCarrinho {
   id: number;
   quantidade: number;
   produtoVariacaoId: number;
+  produtoVariacao: ProdutoVariacao & {
+    produto: Produto;
+    cor?: Cor | null;
+    tamanho: Tamanho;
+  };
 }
 
 export interface Carrinho {
@@ -88,6 +93,13 @@ export interface Carrinho {
   finalizado: boolean;
   usuarioId: number;
   itens: ItemCarrinho[];
+}
+
+export interface PedidoWhatsapp {
+  carrinhoId: number;
+  mensagem: string;
+  whatsappUrl: string;
+  total: number;
 }
 
 export interface SugestaoIA {

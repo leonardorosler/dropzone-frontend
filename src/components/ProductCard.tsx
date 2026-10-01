@@ -1,3 +1,4 @@
+import { Heart } from "lucide-react";
 import type { Produto } from "../types";
 
 interface ProductCardProps {
@@ -23,7 +24,7 @@ export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
         {(produto.destaque || modoHome) && <span className="badge">Novo</span>}
 
         <button className="favorite-btn" type="button" aria-label={`Favoritar ${produto.nome}`}>
-          ♡
+          <Heart size={18} />
         </button>
       </div>
 
