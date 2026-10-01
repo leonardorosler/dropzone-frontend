@@ -137,11 +137,13 @@ export interface DashboardAdmin {
   produtosMaisFavoritados: Array<{
     id: number;
     nome: string;
+    imagemUrl?: string | null;
     totalFavoritos: number;
   }>;
   produtosMelhorAvaliados: Array<{
     id: number;
     nome: string;
+    imagemUrl?: string | null;
     mediaAvaliacao: number;
     totalAvaliacoes: number;
   }>;

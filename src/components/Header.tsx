@@ -1,10 +1,42 @@
 import { Heart, Search, ShoppingBag } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { listarCarrinho } from "../api/carrinho";
 import { useAuth } from "../auth/AuthContext";
 
 export function Header() {
   const { usuario, logout } = useAuth();
   const [busca, setBusca] = useState("");
+  const [quantidadeCarrinho, setQuantidadeCarrinho] = useState(0);
+
+  async function carregarQuantidadeCarrinho() {
+    if (!usuario) {
+      setQuantidadeCarrinho(0);
+      return;
+    }
+
+    try {
+      const carrinho = await listarCarrinho();
+      const quantidade = carrinho.itens.reduce(
+        (total, item) => total + item.quantidade,
+        0
+      );
+      setQuantidadeCarrinho(quantidade);
+    } catch {
+      setQuantidadeCarrinho(0);
+    }
+  }
+
+  useEffect(() => {
+    carregarQuantidadeCarrinho();
+
+    window.addEventListener("focus", carregarQuantidadeCarrinho);
+    window.addEventListener("dropzone:carrinho-atualizado", carregarQuantidadeCarrinho);
+
+    return () => {
+      window.removeEventListener("focus", carregarQuantidadeCarrinho);
+      window.removeEventListener("dropzone:carrinho-atualizado", carregarQuantidadeCarrinho);
+    };
+  }, [usuario]);
 
   function buscar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -14,15 +46,9 @@ export function Header() {
 
   return (
     <>
-      <div className="topbar">
-        <span>DropZone</span>
-        <span>Streetwear brasileiro / catálogo real / pedido via WhatsApp</span>
-        <span>IA para combinar looks</span>
-      </div>
-
       <header className="site-header">
         <a className="brand brand-image" href="/" aria-label="DropZone">
-          <img src="/home/logo-dropzone.png" alt="DropZone" />
+          <img src="/home/logo-dropzone-graffiti.png" alt="DropZone" />
         </a>
 
         <nav className="nav">
@@ -47,8 +73,13 @@ export function Header() {
           <a className="icon-link" href="/favoritos" aria-label="Favoritos">
             <Heart size={19} />
           </a>
-          <a className="icon-link" href="/carrinho" aria-label="Carrinho">
+          <a className="icon-link cart-link" href="/carrinho" aria-label="Carrinho">
             <ShoppingBag size={19} />
+            {quantidadeCarrinho > 0 && (
+              <span className="cart-count">
+                {quantidadeCarrinho > 99 ? "99+" : quantidadeCarrinho}
+              </span>
+            )}
           </a>
 
           {usuario ? (

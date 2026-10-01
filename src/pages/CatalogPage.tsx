@@ -64,12 +64,13 @@ export function CatalogPage() {
             onChange={(event) => setBusca(event.target.value)}
             placeholder="Buscar por camiseta, moletom..."
           />
-          <label className="check-filter">
+          <label className={somenteDestaque ? "check-filter active" : "check-filter"}>
             <input
               type="checkbox"
               checked={somenteDestaque}
               onChange={(event) => setSomenteDestaque(event.target.checked)}
             />
+            <span aria-hidden="true" />
             Destaques
           </label>
           <button className="btn btn-primary" type="submit">

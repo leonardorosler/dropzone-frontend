@@ -1,18 +1,34 @@
+import { Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { adicionarItemCarrinho } from "../api/carrinho";
+import { sugerirLook } from "../api/ia";
 import { listarProdutos } from "../api/produtos";
+import { useAuth } from "../auth/AuthContext";
 import { ProductCard } from "../components/ProductCard";
-import type { Produto } from "../types";
+import type { Produto, SugestaoIA } from "../types";
+import { obterImagemProduto } from "../utils/produtoImagem";
 
 const categorias = [
   { nome: "Camisetas", busca: "camiseta", imagem: "/home/categoria-camisetas.webp" },
   { nome: "Moletons", busca: "moletom", imagem: "/home/categoria-moletons.webp" },
   { nome: "Calças", busca: "calça", imagem: "/home/categoria-calcas.webp" },
+  { nome: "Bermudas", busca: "bermuda", imagem: "/home/categoria-bermudas.webp" },
   { nome: "Jaquetas", busca: "jaqueta", imagem: "/home/categoria-jaquetas.webp" },
+  { nome: "Bonés", busca: "boné", imagem: "/home/categoria-bones.webp" },
+  { nome: "Tênis", busca: "tênis", imagem: "/home/categoria-tenis.webp" },
+  { nome: "Acessórios", busca: "acessório", imagem: "/home/categoria-acessorios.webp" },
 ];
 
 export function HomePage() {
+  const { estaLogado } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [sugestaoIa, setSugestaoIa] = useState<SugestaoIA | null>(null);
+  const [produtosSugestao, setProdutosSugestao] = useState<Record<number, Produto>>({});
+  const [indiceProdutoIa, setIndiceProdutoIa] = useState(0);
   const [carregando, setCarregando] = useState(true);
+  const [carregandoIa, setCarregandoIa] = useState(false);
+  const [fazendoPedidoIa, setFazendoPedidoIa] = useState(false);
+  const [erroIa, setErroIa] = useState("");
 
   useEffect(() => {
     listarProdutos({ disponivel: true })
@@ -27,13 +43,106 @@ export function HomePage() {
     return destacados.length > 0 ? destacados.slice(0, 8) : produtos.slice(0, 8);
   }, [produtos]);
 
+  const opcoesProdutoIa = destaques.length > 0 ? destaques : produtos;
+  const produtoBaseIa = opcoesProdutoIa[indiceProdutoIa % opcoesProdutoIa.length] ?? null;
+
+  const imagemBaseIa = obterImagemProduto(produtoBaseIa);
+
+  function trocarProdutoIa() {
+    if (opcoesProdutoIa.length <= 1) return;
+
+    setIndiceProdutoIa((indiceAtual) => (indiceAtual + 1) % opcoesProdutoIa.length);
+    setSugestaoIa(null);
+    setProdutosSugestao({});
+    setErroIa("");
+  }
+
+  async function gerarSugestaoHome() {
+    if (!produtoBaseIa) return;
+
+    if (!estaLogado) {
+      window.location.href = "/login";
+      return;
+    }
+
+    setCarregandoIa(true);
+    setErroIa("");
+    setSugestaoIa(null);
+    setProdutosSugestao({});
+
+    try {
+      const resultado = await sugerirLook(produtoBaseIa.id);
+      const produtosPorId = new Map(produtos.map((produto) => [produto.id, produto]));
+      const produtosEncontrados = Object.fromEntries(
+        (resultado.sugestoes ?? [])
+          .map((item) => produtosPorId.get(item.produtoId))
+          .filter((produto): produto is Produto => Boolean(produto))
+          .map((produto) => [produto.id, produto])
+      );
+
+      setSugestaoIa(resultado);
+      setProdutosSugestao(produtosEncontrados);
+    } catch (error) {
+      setErroIa(
+        error instanceof Error ? error.message : "Erro ao gerar sugestão de IA."
+      );
+    } finally {
+      setCarregandoIa(false);
+    }
+  }
+
+  async function fazerPedidoIa() {
+    if (!sugestaoIa || !produtoBaseIa) return;
+
+    if (!estaLogado) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const produtosDoLook = new Map<number, Produto>();
+    produtosDoLook.set(produtoBaseIa.id, produtoBaseIa);
+
+    for (const item of sugestaoIa.sugestoes ?? []) {
+      const produtoSugerido = produtosSugestao[item.produtoId];
+      if (produtoSugerido) produtosDoLook.set(produtoSugerido.id, produtoSugerido);
+    }
+
+    const variacoes = [...produtosDoLook.values()]
+      .map((produto) =>
+        produto.variacoes?.find((variacao) => variacao.disponivel) ??
+        produto.variacoes?.[0]
+      )
+      .filter((variacao): variacao is NonNullable<typeof variacao> => Boolean(variacao));
+
+    if (variacoes.length === 0) {
+      setErroIa("Nenhuma peça do look tem variação disponível para adicionar ao carrinho.");
+      return;
+    }
+
+    setFazendoPedidoIa(true);
+    setErroIa("");
+
+    try {
+      for (const variacao of variacoes) {
+        await adicionarItemCarrinho(variacao.id, 1);
+      }
+
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
+      window.location.href = "/carrinho";
+    } catch (error) {
+      setErroIa(
+        error instanceof Error ? error.message : "Erro ao adicionar look ao carrinho."
+      );
+    } finally {
+      setFazendoPedidoIa(false);
+    }
+  }
+
   return (
     <main>
       <section className="hero" id="inicio">
         <div className="hero-slider" aria-hidden="true">
-          <img src="/home/hero-01.webp" alt="" />
-          <img src="/home/hero-02.webp" alt="" />
-          <img src="/home/hero-03.webp" alt="" />
+          <img src="/home/hero-dropzone-campaign.png" alt="" />
         </div>
 
         <div className="hero-content">
@@ -66,21 +175,116 @@ export function HomePage() {
 
       <section className="ai-section" id="ia">
         <div className="ai-copy">
-          <span className="eyebrow">Sugestão IA</span>
+          <span className="eyebrow ai-eyebrow">
+            <Sparkles size={14} aria-hidden="true" />
+            Sugestão IA
+          </span>
           <h2>Combine peças pelo clima da rua.</h2>
           <p>
-            O app vai usar a rota de IA do backend para sugerir combinações a
-            partir de uma peça escolhida.
+            Escolhemos uma peça base do catálogo e a IA sugere uma combinação
+            com outras peças disponíveis na loja.
           </p>
+          <button
+            className="btn btn-primary"
+            type="button"
+            disabled={!produtoBaseIa || carregandoIa}
+            onClick={gerarSugestaoHome}
+          >
+            <Sparkles size={15} aria-hidden="true" />
+            {carregandoIa ? "Gerando..." : "Gerar sugestão"}
+          </button>
         </div>
 
-        <div className="ai-visual">
-          <img src="/home/ia-look-visual.webp" alt="Referência visual de look DropZone" />
-        </div>
+        <article className="ai-base-card">
+          <div className="ai-base-card-heading">
+            <span>Peça analisada</span>
+            <button
+              type="button"
+              onClick={trocarProdutoIa}
+              disabled={opcoesProdutoIa.length <= 1 || carregandoIa}
+            >
+              Trocar peça
+            </button>
+          </div>
+          <a href={produtoBaseIa ? `/produtos/${produtoBaseIa.id}` : "/catalogo"}>
+            <img
+              src={imagemBaseIa}
+              alt={produtoBaseIa ? `Produto base: ${produtoBaseIa.nome}` : "Catálogo DropZone"}
+            />
+          </a>
+          <div>
+            <small>{produtoBaseIa?.categoria?.nome ?? "Catálogo"}</small>
+            <strong>{produtoBaseIa?.nome ?? "Escolha uma peça"}</strong>
+          </div>
+        </article>
 
         <div className="ai-detail">
-          <strong>Gerado por IA</strong>
-          <p>Esse bloco já deixa claro no frontend que a sugestão vem da integração com IA.</p>
+          <div className="ai-label-block">
+            <strong>
+              {sugestaoIa ? "Look sugerido pela IA" : "Pronto para combinar"}
+            </strong>
+            {produtoBaseIa && (
+              <small className="ai-base">Base: {produtoBaseIa.nome}</small>
+            )}
+          </div>
+
+          {sugestaoIa ? (
+            <>
+              {sugestaoIa.explicacao && <p>{sugestaoIa.explicacao}</p>}
+
+              {sugestaoIa.sugestoes && sugestaoIa.sugestoes.length > 0 && (
+                <div className="ai-home-suggestions">
+                  {sugestaoIa.sugestoes.slice(0, 3).map((item) => {
+                    const produtoSugerido = produtosSugestao[item.produtoId];
+
+                    return (
+                      <a
+                        className="ai-suggestion-card"
+                        href={`/produtos/${item.produtoId}`}
+                        key={item.produtoId}
+                      >
+                        {produtoSugerido && (
+                          <img
+                            src={obterImagemProduto(produtoSugerido)}
+                            alt={produtoSugerido.nome}
+                          />
+                        )}
+                        <div>
+                          <b>{item.nome}</b>
+                          {produtoSugerido && (
+                            <small>
+                              {Number(produtoSugerido.preco).toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
+                            </small>
+                          )}
+                          <span>{item.motivo}</span>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary look-order-button"
+                type="button"
+                onClick={fazerPedidoIa}
+                disabled={fazendoPedidoIa}
+              >
+                {fazendoPedidoIa ? "Adicionando..." : "Fazer pedido"}
+              </button>
+            </>
+          ) : (
+            <p>
+              Clique para consultar a IA e receber uma combinação real com
+              explicação e produtos clicáveis.
+              {estaLogado ? "" : " É preciso estar logado para interagir."}
+            </p>
+          )}
+
+          {erroIa && <p className="error">{erroIa}</p>}
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { buscarDashboardAdmin } from "../api/admin";
 import { buscarMinhasInteracoes } from "../api/auth";
@@ -30,6 +30,7 @@ import type {
   ProdutoVariacao,
   SugestaoIA,
 } from "../types";
+import { obterImagemProduto } from "../utils/produtoImagem";
 
 export function FavoritesPage() {
   const [favoritos, setFavoritos] = useState<Favorito[]>([]);
@@ -109,10 +110,7 @@ export function FavoritesPage() {
                 <>
                   <a className="favorite-image" href={`/produtos/${favorito.produto.id}`}>
                     <img
-                      src={
-                        favorito.produto.imagens?.[0]?.imagemUrl ??
-                        "/home/produto-demo-01.webp"
-                      }
+                      src={obterImagemProduto(favorito.produto)}
                       alt={favorito.produto.nome}
                     />
                   </a>
@@ -223,6 +221,7 @@ export function CartPage() {
             }
           : atual
       );
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao alterar quantidade.");
     }
@@ -244,6 +243,7 @@ export function CartPage() {
           : atual
       );
       setMensagem("Item removido do carrinho.");
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao remover item.");
     }
@@ -258,6 +258,7 @@ export function CartPage() {
       const resultado = await gerarPedidoWhatsapp();
       setPedido(resultado);
       setMensagem("Pedido pronto para enviar pelo WhatsApp.");
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao finalizar carrinho.");
     }
@@ -306,7 +307,7 @@ export function CartPage() {
                 <article className="cart-item" key={item.id}>
                   <a className="cart-image" href={`/produtos/${produto.id}`}>
                     <img
-                      src={produto.imagens?.[0]?.imagemUrl ?? "/home/produto-demo-01.webp"}
+                      src={obterImagemProduto(produto)}
                       alt={produto.nome}
                     />
                   </a>
@@ -617,6 +618,13 @@ export function AdminPage() {
       )
     : 1;
 
+  const mediaGeral = dashboard?.produtosMelhorAvaliados.length
+    ? dashboard.produtosMelhorAvaliados.reduce(
+        (total, produto) => total + Number(produto.mediaAvaliacao),
+        0
+      ) / dashboard.produtosMelhorAvaliados.length
+    : 0;
+
   return (
     <main className="section admin-dashboard-page">
       <AdminNav />
@@ -648,26 +656,57 @@ export function AdminPage() {
             <article>
               <span>Produtos</span>
               <strong>{dashboard.totais.produtos}</strong>
+              <small>Catálogo ativo</small>
             </article>
             <article>
               <span>Clientes</span>
               <strong>{dashboard.totais.clientes}</strong>
+              <small>Contas criadas</small>
             </article>
             <article>
               <span>Avaliações</span>
               <strong>{dashboard.totais.avaliacoes}</strong>
+              <small>Feedbacks recebidos</small>
             </article>
             <article>
               <span>Favoritos</span>
               <strong>{dashboard.totais.favoritos}</strong>
+              <small>Interesse em peças</small>
             </article>
             <article>
               <span>Pedidos</span>
               <strong>{dashboard.totais.pedidosFinalizados}</strong>
+              <small>Finalizados</small>
             </article>
           </section>
 
           <section className="admin-chart-grid">
+            <article className="admin-overview-card">
+              <div>
+                <span className="eyebrow">Resumo operacional</span>
+                <h2>Visão geral da loja</h2>
+                <p>
+                  Acompanhe catálogo, clientes e interações para decidir quais
+                  peças destacar e quais avaliações responder primeiro.
+                </p>
+              </div>
+
+              <div className="admin-health-grid">
+                <span>
+                  <b>{mediaGeral.toFixed(1)} ★</b>
+                  média dos melhores
+                </span>
+                <span>
+                  <b>{dashboard.produtosMaisFavoritados.length}</b>
+                  produtos no ranking
+                </span>
+                <span>
+                  <b>{dashboard.totais.favoritos + dashboard.totais.avaliacoes}</b>
+                  interações totais
+                </span>
+              </div>
+            </article>
+
             <article className="admin-chart-card">
               <div className="panel-heading">
                 <span className="eyebrow">Visão geral</span>
@@ -731,7 +770,16 @@ export function AdminPage() {
               ) : (
                 <div className="rating-chart">
                   {dashboard.produtosMelhorAvaliados.map((produto) => (
-                    <a className="rating-bar" href={`/produtos/${produto.id}`} key={produto.id}>
+                    <a
+                      className="rating-bar"
+                      href={`/produtos/${produto.id}`}
+                      key={produto.id}
+                      style={
+                        produto.imagemUrl
+                          ? { backgroundImage: `url(${produto.imagemUrl})` }
+                          : undefined
+                      }
+                    >
                       <div>
                         <strong>{produto.nome}</strong>
                         <span>
@@ -773,8 +821,10 @@ export function ProductDetailPage({ id }: { id: string }) {
   const [nota, setNota] = useState(5);
   const [comentario, setComentario] = useState("");
   const [sugestao, setSugestao] = useState<SugestaoIA | null>(null);
+  const [produtosSugestao, setProdutosSugestao] = useState<Record<number, Produto>>({});
   const [carregando, setCarregando] = useState(true);
   const [carregandoIa, setCarregandoIa] = useState(false);
+  const [fazendoPedidoIa, setFazendoPedidoIa] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
 
@@ -811,8 +861,7 @@ export function ProductDetailPage({ id }: { id: string }) {
     };
   }, [produtoId]);
 
-  const imagemPrincipal =
-    produto?.imagens?.[0]?.imagemUrl ?? "/home/produto-demo-01.webp";
+  const imagemPrincipal = obterImagemProduto(produto);
 
   const preco = Number(produto?.preco ?? 0).toLocaleString("pt-BR", {
     style: "currency",
@@ -864,6 +913,7 @@ export function ProductDetailPage({ id }: { id: string }) {
     try {
       await adicionarItemCarrinho(variacaoSelecionada.id, quantidade);
       setMensagem("Produto adicionado ao carrinho.");
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao adicionar ao carrinho.");
     }
@@ -896,14 +946,71 @@ export function ProductDetailPage({ id }: { id: string }) {
     setCarregandoIa(true);
     setMensagem("");
     setErro("");
+    setSugestao(null);
+    setProdutosSugestao({});
 
     try {
       const resultado = await sugerirLook(produtoId);
+      const detalhes = await Promise.all(
+        (resultado.sugestoes ?? []).map((item) =>
+          buscarProdutoPorId(item.produtoId).catch(() => null)
+        )
+      );
+
       setSugestao(resultado);
+      setProdutosSugestao(
+        Object.fromEntries(
+          detalhes
+            .filter((item): item is Produto => Boolean(item))
+            .map((item) => [item.id, item])
+        )
+      );
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao gerar sugestão de IA.");
     } finally {
       setCarregandoIa(false);
+    }
+  }
+
+  async function fazerPedidoIa() {
+    if (!produto || !sugestao) return;
+    if (exigirLogin()) return;
+
+    const produtosDoLook = new Map<number, Produto>();
+    produtosDoLook.set(produto.id, produto);
+
+    for (const item of sugestao.sugestoes ?? []) {
+      const produtoSugerido = produtosSugestao[item.produtoId];
+      if (produtoSugerido) produtosDoLook.set(produtoSugerido.id, produtoSugerido);
+    }
+
+    const variacoes = [...produtosDoLook.values()]
+      .map((item) =>
+        item.variacoes?.find((variacao) => variacao.disponivel) ??
+        item.variacoes?.[0]
+      )
+      .filter((variacao): variacao is ProdutoVariacao => Boolean(variacao));
+
+    if (variacoes.length === 0) {
+      setErro("Nenhuma peça do look tem variação disponível para adicionar ao carrinho.");
+      return;
+    }
+
+    setFazendoPedidoIa(true);
+    setMensagem("");
+    setErro("");
+
+    try {
+      for (const variacao of variacoes) {
+        await adicionarItemCarrinho(variacao.id, 1);
+      }
+
+      window.dispatchEvent(new Event("dropzone:carrinho-atualizado"));
+      window.location.href = "/carrinho";
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao adicionar look ao carrinho.");
+    } finally {
+      setFazendoPedidoIa(false);
     }
   }
 
@@ -1011,6 +1118,7 @@ export function ProductDetailPage({ id }: { id: string }) {
           </div>
 
           <button className="ia-button" type="button" onClick={gerarSugestaoIa}>
+            <Sparkles size={15} aria-hidden="true" />
             {carregandoIa ? "Gerando sugestão..." : "Gerar look com IA"}
           </button>
 
@@ -1021,20 +1129,48 @@ export function ProductDetailPage({ id }: { id: string }) {
 
       {sugestao && (
         <section className="detail-section ia-result">
-          <span className="eyebrow">{sugestao.fonte ?? "Gerado por IA"}</span>
+          <span className="eyebrow ai-eyebrow">
+            <Sparkles size={14} aria-hidden="true" />
+            {sugestao.fonte ?? "Gerado por IA"}
+          </span>
           <h2>Sugestão de combinação</h2>
           {sugestao.explicacao && <p>{sugestao.explicacao}</p>}
 
           {sugestao.sugestoes && sugestao.sugestoes.length > 0 && (
             <div className="suggestion-list">
-              {sugestao.sugestoes.map((item) => (
-                <a key={item.produtoId} href={`/produtos/${item.produtoId}`}>
-                  <strong>{item.nome}</strong>
-                  <span>{item.motivo}</span>
-                </a>
-              ))}
+              {sugestao.sugestoes.map((item) => {
+                const produtoSugerido = produtosSugestao[item.produtoId];
+                const imagem = obterImagemProduto(produtoSugerido);
+
+                return (
+                  <a key={item.produtoId} href={`/produtos/${item.produtoId}`}>
+                    <img src={imagem} alt={produtoSugerido?.nome ?? item.nome} />
+                    <div>
+                      <strong>{item.nome}</strong>
+                      {produtoSugerido && (
+                        <small>
+                          {Number(produtoSugerido.preco).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </small>
+                      )}
+                      <span>{item.motivo}</span>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           )}
+
+          <button
+            className="btn btn-primary look-order-button"
+            type="button"
+            onClick={fazerPedidoIa}
+            disabled={fazendoPedidoIa}
+          >
+            {fazendoPedidoIa ? "Adicionando..." : "Fazer pedido"}
+          </button>
         </section>
       )}
 

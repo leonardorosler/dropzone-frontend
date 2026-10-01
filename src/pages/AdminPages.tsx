@@ -22,9 +22,12 @@ import {
 } from "../api/cadastros";
 import {
   atualizarDisponibilidadeProduto,
+  atualizarDisponibilidadeVariacao,
   atualizarProduto,
+  criarVariacaoProduto,
   criarProduto,
   deletarProduto,
+  listarVariacoesProduto,
   listarProdutos,
 } from "../api/produtos";
 import type {
@@ -34,6 +37,7 @@ import type {
   Cor,
   Favorito,
   Produto,
+  ProdutoVariacao,
   Tamanho,
 } from "../types";
 
@@ -242,7 +246,13 @@ export function AdminInteractionsPage() {
 export function AdminProductsPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [cores, setCores] = useState<Cor[]>([]);
+  const [tamanhos, setTamanhos] = useState<Tamanho[]>([]);
+  const [variacoesPorProduto, setVariacoesPorProduto] = useState<
+    Record<number, ProdutoVariacao[]>
+  >({});
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [produtoVariacaoAberto, setProdutoVariacaoAberto] = useState<number | null>(null);
   const [form, setForm] = useState({
     nome: "",
     descricao: "",
@@ -250,6 +260,11 @@ export function AdminProductsPage() {
     categoriaId: "",
     imagemUrl: "",
     destaque: false,
+  });
+  const [variacaoForm, setVariacaoForm] = useState({
+    corId: "",
+    tamanhoId: "",
+    disponivel: true,
   });
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -260,12 +275,16 @@ export function AdminProductsPage() {
     setErro("");
 
     try {
-      const [listaProdutos, listaCategorias] = await Promise.all([
+      const [listaProdutos, listaCategorias, listaCores, listaTamanhos] = await Promise.all([
         listarProdutos(),
         listarCategorias(),
+        listarCores(),
+        listarTamanhos(),
       ]);
       setProdutos(listaProdutos);
       setCategorias(listaCategorias);
+      setCores(listaCores);
+      setTamanhos(listaTamanhos);
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao carregar produtos.");
     } finally {
@@ -356,6 +375,83 @@ export function AdminProductsPage() {
     }
   }
 
+  async function abrirVariacoes(produtoId: number) {
+    setErro("");
+    setMensagem("");
+    setProdutoVariacaoAberto((atual) => (atual === produtoId ? null : produtoId));
+
+    try {
+      const variacoes = await listarVariacoesProduto(produtoId);
+      setVariacoesPorProduto((atual) => ({
+        ...atual,
+        [produtoId]: variacoes,
+      }));
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao carregar variações.");
+    }
+  }
+
+  async function criarVariacao(produtoId: number) {
+    setErro("");
+    setMensagem("");
+
+    if (!variacaoForm.tamanhoId) {
+      setErro("Selecione um tamanho para criar a variação.");
+      return;
+    }
+
+    try {
+      await criarVariacaoProduto(produtoId, {
+        corId: variacaoForm.corId ? Number(variacaoForm.corId) : null,
+        tamanhoId: Number(variacaoForm.tamanhoId),
+        disponivel: variacaoForm.disponivel,
+      });
+
+      const variacoes = await listarVariacoesProduto(produtoId);
+      setVariacoesPorProduto((atual) => ({
+        ...atual,
+        [produtoId]: variacoes,
+      }));
+      setVariacaoForm({
+        corId: "",
+        tamanhoId: "",
+        disponivel: true,
+      });
+      setMensagem("Variação criada.");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao criar variação.");
+    }
+  }
+
+  async function alternarDisponibilidadeVariacao(variacao: ProdutoVariacao) {
+    setErro("");
+    setMensagem("");
+
+    try {
+      const atualizada = await atualizarDisponibilidadeVariacao(
+        variacao.id,
+        !variacao.disponivel
+      );
+
+      if (!variacao.produtoId) return;
+
+      setVariacoesPorProduto((atual) => ({
+        ...atual,
+        [variacao.produtoId!]: (atual[variacao.produtoId!] ?? []).map((item) =>
+          item.id === variacao.id
+            ? { ...item, disponivel: atualizada.disponivel }
+            : item
+        ),
+      }));
+    } catch (error) {
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Erro ao alterar disponibilidade da variação."
+      );
+    }
+  }
+
   return (
     <main className="section admin-dashboard-page">
       <AdminNav />
@@ -436,10 +532,98 @@ export function AdminProductsPage() {
                 <button className="btn btn-outline" type="button" onClick={() => alternarDisponibilidade(produto)}>
                   {produto.disponivel ? "Indisponível" : "Disponível"}
                 </button>
+                <button className="btn btn-outline" type="button" onClick={() => abrirVariacoes(produto.id)}>
+                  Variações
+                </button>
                 <button className="btn btn-outline" type="button" onClick={() => remover(produto.id)}>
                   Deletar
                 </button>
               </div>
+              {produtoVariacaoAberto === produto.id && (
+                <section className="variation-admin-panel">
+                  <div className="variation-admin-form">
+                    <label>
+                      Cor
+                      <select
+                        value={variacaoForm.corId}
+                        onChange={(event) =>
+                          setVariacaoForm({
+                            ...variacaoForm,
+                            corId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Sem cor</option>
+                        {cores.map((cor) => (
+                          <option key={cor.id} value={cor.id}>
+                            {cor.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      Tamanho
+                      <select
+                        value={variacaoForm.tamanhoId}
+                        onChange={(event) =>
+                          setVariacaoForm({
+                            ...variacaoForm,
+                            tamanhoId: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Selecione</option>
+                        {tamanhos.map((tamanho) => (
+                          <option key={tamanho.id} value={tamanho.id}>
+                            {tamanho.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="admin-check">
+                      <input
+                        type="checkbox"
+                        checked={variacaoForm.disponivel}
+                        onChange={(event) =>
+                          setVariacaoForm({
+                            ...variacaoForm,
+                            disponivel: event.target.checked,
+                          })
+                        }
+                      />
+                      Disponível
+                    </label>
+
+                    <button className="btn btn-primary" type="button" onClick={() => criarVariacao(produto.id)}>
+                      Criar variação
+                    </button>
+                  </div>
+
+                  <div className="variation-admin-list">
+                    {(variacoesPorProduto[produto.id] ?? []).length === 0 ? (
+                      <p className="status-text">Nenhuma variação cadastrada.</p>
+                    ) : (
+                      variacoesPorProduto[produto.id].map((variacao) => (
+                        <article key={variacao.id}>
+                          <div>
+                            <strong>{variacao.tamanho?.nome ?? "Tamanho"}</strong>
+                            <span>{variacao.cor?.nome ?? "Sem cor"}</span>
+                          </div>
+                          <button
+                            className="btn btn-outline"
+                            type="button"
+                            onClick={() => alternarDisponibilidadeVariacao(variacao)}
+                          >
+                            {variacao.disponivel ? "Indisponível" : "Disponível"}
+                          </button>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              )}
             </article>
           ))}
         </div>

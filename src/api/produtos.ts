@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import type { Produto } from "../types";
+import type { Produto, ProdutoVariacao } from "../types";
 
 export interface ProdutoFiltros {
   busca?: string;
@@ -73,5 +73,32 @@ export function deletarProduto(id: number) {
   return apiFetch<{ mensagem: string; produto: Produto }>(`/produtos/${id}`, {
     method: "DELETE",
     auth: true,
+  });
+}
+
+export function listarVariacoesProduto(produtoId: number) {
+  return apiFetch<ProdutoVariacao[]>(`/produtos/${produtoId}/variacoes`);
+}
+
+export function criarVariacaoProduto(
+  produtoId: number,
+  data: {
+    corId?: number | null;
+    tamanhoId: number;
+    disponivel?: boolean;
+  }
+) {
+  return apiFetch<ProdutoVariacao>(`/produtos/${produtoId}/variacoes`, {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(data),
+  });
+}
+
+export function atualizarDisponibilidadeVariacao(id: number, disponivel: boolean) {
+  return apiFetch<ProdutoVariacao>(`/produtos/variacoes/${id}/disponibilidade`, {
+    method: "PATCH",
+    auth: true,
+    body: JSON.stringify({ disponivel }),
   });
 }

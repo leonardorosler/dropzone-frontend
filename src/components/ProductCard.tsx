@@ -1,5 +1,13 @@
 import { Heart } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  adicionarFavorito,
+  listarFavoritos,
+  removerFavorito,
+} from "../api/favoritos";
+import { useAuth } from "../auth/AuthContext";
 import type { Produto } from "../types";
+import { obterImagemProduto } from "../utils/produtoImagem";
 
 interface ProductCardProps {
   produto: Produto;
@@ -7,12 +15,61 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
-  const imagem =
-    produto.imagens?.[0]?.imagemUrl ?? "/home/produto-demo-01.webp";
+  const { estaLogado } = useAuth();
+  const [favoritado, setFavoritado] = useState(false);
+  const [carregandoFavorito, setCarregandoFavorito] = useState(false);
+  const imagem = obterImagemProduto(produto);
   const preco = Number(produto.preco).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
+
+  useEffect(() => {
+    if (!estaLogado) {
+      setFavoritado(false);
+      return;
+    }
+
+    let ativo = true;
+
+    listarFavoritos()
+      .then((favoritos) => {
+        if (!ativo) return;
+        setFavoritado(
+          favoritos.some((favorito) => favorito.produtoId === produto.id)
+        );
+      })
+      .catch(() => {
+        if (ativo) setFavoritado(false);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [estaLogado, produto.id]);
+
+  async function alternarFavorito() {
+    if (!estaLogado) {
+      window.location.href = "/login";
+      return;
+    }
+
+    setCarregandoFavorito(true);
+
+    try {
+      if (favoritado) {
+        await removerFavorito(produto.id);
+        setFavoritado(false);
+      } else {
+        await adicionarFavorito(produto.id);
+        setFavoritado(true);
+      }
+    } catch {
+      setFavoritado((estadoAtual) => estadoAtual);
+    } finally {
+      setCarregandoFavorito(false);
+    }
+  }
 
   return (
     <article className={modoHome ? "product-card product-card-home" : "product-card"}>
@@ -23,8 +80,19 @@ export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
 
         {(produto.destaque || modoHome) && <span className="badge">Novo</span>}
 
-        <button className="favorite-btn" type="button" aria-label={`Favoritar ${produto.nome}`}>
-          <Heart size={18} />
+        <button
+          className={favoritado ? "favorite-btn active" : "favorite-btn"}
+          type="button"
+          disabled={carregandoFavorito}
+          aria-label={
+            favoritado
+              ? `Remover ${produto.nome} dos favoritos`
+              : `Favoritar ${produto.nome}`
+          }
+          aria-pressed={favoritado}
+          onClick={alternarFavorito}
+        >
+          <Heart size={18} fill={favoritado ? "currentColor" : "none"} />
         </button>
       </div>
 
