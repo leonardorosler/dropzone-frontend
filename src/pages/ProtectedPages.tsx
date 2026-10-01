@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { buscarDashboardAdmin } from "../api/admin";
 import { buscarMinhasInteracoes } from "../api/auth";
 import { criarAvaliacao, listarAvaliacoesProduto } from "../api/avaliacoes";
 import {
@@ -17,9 +18,11 @@ import {
 import { sugerirLook } from "../api/ia";
 import { buscarProdutoPorId } from "../api/produtos";
 import { useAuth } from "../auth/AuthContext";
+import { AdminNav } from "./AdminPages";
 import type {
   Avaliacao,
   Carrinho,
+  DashboardAdmin,
   Favorito,
   InteracoesUsuario,
   PedidoWhatsapp,
@@ -576,12 +579,186 @@ export function InteractionsPage() {
 }
 
 export function AdminPage() {
+  const [dashboard, setDashboard] = useState<DashboardAdmin | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    buscarDashboardAdmin()
+      .then(setDashboard)
+      .catch((error) => {
+        setErro(error instanceof Error ? error.message : "Erro ao carregar dashboard.");
+      })
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const maiorTotalGeral = dashboard
+    ? Math.max(
+        dashboard.totais.produtos,
+        dashboard.totais.clientes,
+        dashboard.totais.avaliacoes,
+        dashboard.totais.favoritos,
+        dashboard.totais.pedidosFinalizados,
+        1
+      )
+    : 1;
+
+  const maiorFavoritos = dashboard
+    ? Math.max(
+        ...dashboard.produtosMaisFavoritados.map((produto) => produto.totalFavoritos),
+        1
+      )
+    : 1;
+
+  const maiorAvaliacoes = dashboard
+    ? Math.max(
+        ...dashboard.produtosMelhorAvaliados.map((produto) => produto.mediaAvaliacao),
+        1
+      )
+    : 1;
+
   return (
-    <PlaceholderPage
-      eyebrow="Admin"
-      title="Painel administrativo"
-      text="Base criada para dashboard, produtos, categorias, cores, tamanhos e interações."
-    />
+    <main className="section admin-dashboard-page">
+      <AdminNav />
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">Admin</span>
+          <h1>Dashboard</h1>
+        </div>
+
+        <div className="admin-shortcuts">
+          <a className="btn btn-outline" href="/admin/interacoes">
+            Interações
+          </a>
+          <a className="btn btn-outline" href="/catalogo">
+            Ver loja
+          </a>
+        </div>
+      </div>
+
+      {carregando ? (
+        <p className="status-text">Carregando dashboard...</p>
+      ) : erro ? (
+        <p className="error page-message">{erro}</p>
+      ) : !dashboard ? (
+        <p className="status-text">Nenhum dado encontrado.</p>
+      ) : (
+        <>
+          <section className="admin-metrics">
+            <article>
+              <span>Produtos</span>
+              <strong>{dashboard.totais.produtos}</strong>
+            </article>
+            <article>
+              <span>Clientes</span>
+              <strong>{dashboard.totais.clientes}</strong>
+            </article>
+            <article>
+              <span>Avaliações</span>
+              <strong>{dashboard.totais.avaliacoes}</strong>
+            </article>
+            <article>
+              <span>Favoritos</span>
+              <strong>{dashboard.totais.favoritos}</strong>
+            </article>
+            <article>
+              <span>Pedidos</span>
+              <strong>{dashboard.totais.pedidosFinalizados}</strong>
+            </article>
+          </section>
+
+          <section className="admin-chart-grid">
+            <article className="admin-chart-card">
+              <div className="panel-heading">
+                <span className="eyebrow">Visão geral</span>
+                <h2>Volume do sistema</h2>
+              </div>
+
+              <div className="bar-chart">
+                {[
+                  ["Produtos", dashboard.totais.produtos],
+                  ["Clientes", dashboard.totais.clientes],
+                  ["Avaliações", dashboard.totais.avaliacoes],
+                  ["Favoritos", dashboard.totais.favoritos],
+                  ["Pedidos", dashboard.totais.pedidosFinalizados],
+                ].map(([label, valor]) => (
+                  <div className="bar-row" key={label}>
+                    <span>{label}</span>
+                    <div>
+                      <i style={{ width: `${(Number(valor) / maiorTotalGeral) * 100}%` }} />
+                    </div>
+                    <b>{valor}</b>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="admin-chart-card">
+              <div className="panel-heading">
+                <span className="eyebrow">Ranking</span>
+                <h2>Mais favoritados</h2>
+              </div>
+
+              {dashboard.produtosMaisFavoritados.length === 0 ? (
+                <p className="status-text">Sem favoritos registrados.</p>
+              ) : (
+                <div className="ranking-chart">
+                  {dashboard.produtosMaisFavoritados.map((produto) => (
+                    <a className="ranking-row" href={`/produtos/${produto.id}`} key={produto.id}>
+                      <strong>{produto.nome}</strong>
+                      <div>
+                        <i
+                          style={{
+                            width: `${(produto.totalFavoritos / maiorFavoritos) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <span>{produto.totalFavoritos}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="admin-chart-card wide">
+              <div className="panel-heading">
+                <span className="eyebrow">Avaliações</span>
+                <h2>Melhor avaliados</h2>
+              </div>
+
+              {dashboard.produtosMelhorAvaliados.length === 0 ? (
+                <p className="status-text">Sem avaliações registradas.</p>
+              ) : (
+                <div className="rating-chart">
+                  {dashboard.produtosMelhorAvaliados.map((produto) => (
+                    <a className="rating-bar" href={`/produtos/${produto.id}`} key={produto.id}>
+                      <div>
+                        <strong>{produto.nome}</strong>
+                        <span>
+                          {Number(produto.mediaAvaliacao).toFixed(1)} ★ /{" "}
+                          {produto.totalAvaliacoes} avaliações
+                        </span>
+                      </div>
+                      <meter
+                        min={0}
+                        max={5}
+                        value={Number(produto.mediaAvaliacao)}
+                        aria-label={`Média de ${produto.nome}`}
+                      />
+                      <i
+                        style={{
+                          height: `${(Number(produto.mediaAvaliacao) / maiorAvaliacoes) * 100}%`,
+                        }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </article>
+          </section>
+        </>
+      )}
+    </main>
   );
 }
 
@@ -915,22 +1092,3 @@ export function ProductDetailPage({ id }: { id: string }) {
   );
 }
 
-function PlaceholderPage({
-  eyebrow,
-  title,
-  text = "Estrutura de rota criada. Agora podemos conectar essa tela na API.",
-}: {
-  eyebrow: string;
-  title: string;
-  text?: string;
-}) {
-  return (
-    <main className="page-shell">
-      <section className="empty-panel">
-        <span className="eyebrow">{eyebrow}</span>
-        <h1>{title}</h1>
-        <p>{text}</p>
-      </section>
-    </main>
-  );
-}

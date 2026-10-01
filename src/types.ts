@@ -76,6 +76,7 @@ export interface Favorito {
   produtoId: number;
   usuarioId: number;
   produto?: Produto;
+  usuario?: Pick<Usuario, "id" | "nome" | "email">;
 }
 
 export interface ItemCarrinho {
@@ -93,6 +94,7 @@ export interface Carrinho {
   id: number;
   finalizado: boolean;
   usuarioId: number;
+  usuario?: Pick<Usuario, "id" | "nome" | "email">;
   itens: ItemCarrinho[];
 }
 
@@ -122,4 +124,25 @@ export interface SugestaoIA {
   }>;
   geradoPorIA?: boolean;
   fonte?: string;
+}
+
+export interface DashboardAdmin {
+  totais: {
+    produtos: number;
+    clientes: number;
+    avaliacoes: number;
+    favoritos: number;
+    pedidosFinalizados: number;
+  };
+  produtosMaisFavoritados: Array<{
+    id: number;
+    nome: string;
+    totalFavoritos: number;
+  }>;
+  produtosMelhorAvaliados: Array<{
+    id: number;
+    nome: string;
+    mediaAvaliacao: number;
+    totalAvaliacoes: number;
+  }>;
 }

@@ -28,3 +28,50 @@ export function listarProdutos(filtros: ProdutoFiltros = {}) {
 export function buscarProdutoPorId(id: number) {
   return apiFetch<Produto>(`/produtos/${id}`);
 }
+
+export function criarProduto(data: {
+  nome: string;
+  descricao: string;
+  preco: number;
+  categoriaId: number;
+  imagemUrl?: string;
+  destaque?: boolean;
+}) {
+  return apiFetch<Produto>("/produtos", {
+    method: "POST",
+    auth: true,
+    body: JSON.stringify(data),
+  });
+}
+
+export function atualizarProduto(
+  id: number,
+  data: {
+    nome: string;
+    descricao: string;
+    preco: number;
+    categoriaId: number;
+    destaque?: boolean;
+  }
+) {
+  return apiFetch<Produto>(`/produtos/${id}`, {
+    method: "PUT",
+    auth: true,
+    body: JSON.stringify(data),
+  });
+}
+
+export function atualizarDisponibilidadeProduto(id: number, disponivel: boolean) {
+  return apiFetch<Produto>(`/produtos/${id}/disponibilidade`, {
+    method: "PATCH",
+    auth: true,
+    body: JSON.stringify({ disponivel }),
+  });
+}
+
+export function deletarProduto(id: number) {
+  return apiFetch<{ mensagem: string; produto: Produto }>(`/produtos/${id}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}

@@ -1,6 +1,11 @@
 import { AuthProvider } from "./auth/AuthContext";
 import { Header } from "./components/Header";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import {
+  AdminCrudPage,
+  AdminInteractionsPage,
+  AdminProductsPage,
+} from "./pages/AdminPages";
 import { CatalogPage } from "./pages/CatalogPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -50,7 +55,47 @@ function Router() {
     );
   }
 
-  if (pathname.startsWith("/admin")) {
+  if (pathname === "/admin/produtos") {
+    return (
+      <ProtectedRoute admin>
+        <AdminProductsPage />
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/admin/interacoes") {
+    return (
+      <ProtectedRoute admin>
+        <AdminInteractionsPage />
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/admin/categorias") {
+    return (
+      <ProtectedRoute admin>
+        <AdminCrudPage tipo="categorias" />
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/admin/cores") {
+    return (
+      <ProtectedRoute admin>
+        <AdminCrudPage tipo="cores" />
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/admin/tamanhos") {
+    return (
+      <ProtectedRoute admin>
+        <AdminCrudPage tipo="tamanhos" />
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/admin") {
     return (
       <ProtectedRoute admin>
         <AdminPage />
