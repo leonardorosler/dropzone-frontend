@@ -58,3 +58,49 @@ export interface LoginResponse {
   token: string;
   usuario: Usuario;
 }
+
+export interface Avaliacao {
+  id: number;
+  nota: number;
+  comentario?: string | null;
+  respostaAdmin?: string | null;
+  produtoId: number;
+  usuarioId: number;
+  criadoEm?: string;
+  usuario?: Pick<Usuario, "id" | "nome" | "email">;
+}
+
+export interface Favorito {
+  id: number;
+  produtoId: number;
+  usuarioId: number;
+  produto?: Produto;
+}
+
+export interface ItemCarrinho {
+  id: number;
+  quantidade: number;
+  produtoVariacaoId: number;
+}
+
+export interface Carrinho {
+  id: number;
+  finalizado: boolean;
+  usuarioId: number;
+  itens: ItemCarrinho[];
+}
+
+export interface SugestaoIA {
+  produtoBase?: {
+    id: number;
+    nome: string;
+  };
+  explicacao?: string;
+  sugestoes?: Array<{
+    produtoId: number;
+    nome: string;
+    motivo: string;
+  }>;
+  geradoPorIA?: boolean;
+  fonte?: string;
+}
