@@ -16,7 +16,9 @@ export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
   return (
     <article className={modoHome ? "product-card product-card-home" : "product-card"}>
       <div className="product-media">
-        <img src={imagem} alt={produto.nome} loading="lazy" />
+        <a href={`/produtos/${produto.id}`}>
+          <img src={imagem} alt={produto.nome} loading="lazy" />
+        </a>
 
         {(produto.destaque || modoHome) && <span className="badge">Novo</span>}
 
@@ -25,7 +27,7 @@ export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
         </button>
       </div>
 
-      <div className="product-info">
+      <a className="product-info" href={`/produtos/${produto.id}`}>
         <small className="product-category">{produto.categoria?.nome ?? "DropZone"}</small>
         <strong>{produto.nome}</strong>
 
@@ -47,7 +49,7 @@ export function ProductCard({ produto, modoHome = false }: ProductCardProps) {
           <strong>{preco}</strong>
           <span>{Number(produto.mediaAvaliacoes ?? 0).toFixed(1)} ★</span>
         </div>
-      </div>
+      </a>
     </article>
   );
 }

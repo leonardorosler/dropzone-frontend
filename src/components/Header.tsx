@@ -1,23 +1,16 @@
-import type { FormEvent } from "react";
-import type { Usuario } from "../types";
+import { useState, type FormEvent } from "react";
+import { useAuth } from "../auth/AuthContext";
 
-interface HeaderProps {
-  usuario: Usuario | null;
-  busca: string;
-  onBuscaChange: (valor: string) => void;
-  onBuscar: (event: FormEvent<HTMLFormElement>) => void;
-  onLoginClick: () => void;
-  onLogout: () => void;
-}
+export function Header() {
+  const { usuario, logout } = useAuth();
+  const [busca, setBusca] = useState("");
 
-export function Header({
-  usuario,
-  busca,
-  onBuscaChange,
-  onBuscar,
-  onLoginClick,
-  onLogout,
-}: HeaderProps) {
+  function buscar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const termo = busca.trim();
+    window.location.href = `/catalogo${termo ? `?busca=${encodeURIComponent(termo)}` : ""}`;
+  }
+
   return (
     <>
       <div className="topbar">
@@ -27,46 +20,49 @@ export function Header({
       </div>
 
       <header className="site-header">
-        <a className="brand brand-image" href="#inicio" aria-label="DropZone">
+        <a className="brand brand-image" href="/" aria-label="DropZone">
           <img src="/home/logo-dropzone.png" alt="DropZone" />
         </a>
 
         <nav className="nav">
-          <a href="#catalogo">Catálogo</a>
-          <a href="#categorias">Categorias</a>
-          <a href="#destaques">Destaques</a>
-          <a href="#ia">Looks IA</a>
+          <a href="/catalogo">Catálogo</a>
+          <a href="/catalogo?destaque=true">Destaques</a>
+          <a href="/favoritos">Favoritos</a>
+          <a href="/carrinho">Carrinho</a>
+          {usuario?.role === "ADMIN" && <a href="/admin">Admin</a>}
         </nav>
 
-        <form className="search-shell" onSubmit={onBuscar}>
+        <form className="search-shell" onSubmit={buscar}>
           <span aria-hidden="true">⌕</span>
           <input
             aria-label="Buscar produtos"
             placeholder="Buscar camiseta, moletom..."
             value={busca}
-            onChange={(event) => onBuscaChange(event.target.value)}
+            onChange={(event) => setBusca(event.target.value)}
           />
         </form>
 
         <div className="header-actions">
-          <a className="icon-link" href="#favoritos" aria-label="Favoritos">
+          <a className="icon-link" href="/favoritos" aria-label="Favoritos">
             ♡
           </a>
-          <a className="icon-link" href="#carrinho" aria-label="Carrinho">
+          <a className="icon-link" href="/carrinho" aria-label="Carrinho">
             ▢
           </a>
 
           {usuario ? (
             <>
-              <span className="user-pill">{usuario.nome}</span>
-              <button className="ghost-button" type="button" onClick={onLogout}>
+              <a className="user-pill" href="/interacoes">
+                {usuario.nome}
+              </a>
+              <button className="ghost-button" type="button" onClick={logout}>
                 Sair
               </button>
             </>
           ) : (
-            <button className="ghost-button" type="button" onClick={onLoginClick}>
+            <a className="ghost-button" href="/login">
               Entrar
-            </button>
+            </a>
           )}
         </div>
       </header>
